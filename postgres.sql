@@ -33,21 +33,67 @@ select row_to_json(row) from (select array_agg(c.column_name) as table_columns, 
 
 select distinct(c.table_name) from information_schema."columns" c where table_schema = 'public'  --Pegar os nomes das tabelas
 
---Uma funcao para construir as tabelas e chaves primarias
+--Uma funcao para construir as tabelas
 
 CREATE OR REPLACE procedure  create_tables_statements_from_schema()
 LANGUAGE PLPGSQL
 AS $$
 DECLARE
-	tables_info CURSOR FOR SELECT row_to_json(row) FROM (SELECT array_agg(c.column_name) AS table_columns, array_agg(c.data_type) AS data_type, array_agg(c.is_nullable) AS is_nullabel, array_agg(c.character_maximum_length) AS character_maximum_lenght , table_name FROM information_schema."columns" c WHERE table_schema = 'public' GROUP BY table_name) ROW;
+	--tables_info CURSOR FOR SELECT row_to_json(row) FROM (SELECT array_agg(c.column_name) AS table_columns, array_agg(c.data_type) AS data_type, array_agg(c.is_nullable) AS is_nullabel, array_agg(c.character_maximum_length) AS character_maximum_lenght , table_name FROM information_schema."columns" c WHERE table_schema = 'public' GROUP BY table_name) ROW;
+	tables_info CURSOR FOR SELECT array_agg(c.column_name) AS table_columns, array_agg(c.numeric_precision) as numeric_precision , array_agg(c.numeric_scale) as numeric_scale ,array_agg(c.data_type) AS data_type, array_agg(c.is_nullable) AS is_nullable, array_agg(c.character_maximum_length) AS character_maximum_lenght , table_name FROM information_schema."columns" c WHERE table_schema = 'public' GROUP BY table_name;
+	i integer;
+	create_statement varchar;
+	column_name varchar;
+	column_type varchar;
+	is_column_nullable varchar;
+	charcter_maximum_lenght integer;
+	number_of_columns integer;
+	column_definition varchar;
+	numeric_scale integer;
+	numeric_precision integer;
 BEGIN
-	
-	
 	for table_info in tables_info LOOP
-		RAISE NOTICE 'Tabela: %', table_info;
-		RAISE NOTICE 'CREATE TABLE "%" ( )'
+		create_statement := format('CREATE TABLE "%s" (', table_info.table_name);
+		SELECT count(*) INTO number_of_columns from information_schema."columns" where table_schema = 'public' and table_name = table_info.table_name;
+		for i in 1..number_of_columns LOOP
+			column_definition := '';
+			column_name := table_info.table_columns[i];
+			column_type := table_info.data_type[i];
+			is_column_nullable := table_info.is_nullable[i];
+			charcter_maximum_lenght := table_info.character_maximum_lenght[i];
+			numeric_precision := table_info.numeric_precision[i];
+			numeric_scale := table_info.numeric_scale[i];
+			
+			column_definition := concat(column_definition, format('"%s"', column_name));
+			
+			if column_type = 'integer' THEN
+				column_definition := concat(column_definition,' ','INT');
+			END IF;
+		
+			if column_type = 'character varying' THEN 
+				column_definition := concat(column_definition, ' ', format('VARCHAR(%s)', charcter_maximum_lenght::varchar));
+			END IF;
+		
+			if column_type = 'timestamp without time zone' THEN
+				column_definition := concat(column_definition, ' ', 'TIMESTAMP');
+			END IF;
+			
+			if column_type = 'numeric' then
+				column_definition := concat(column_definition, ' ', format('NUMERIC(%s,%s)',numeric_precision::varchar, numeric_scale::varchar));
+			end if;
+			
+			if is_column_nullable = 'NO' THEN
+				column_definition := concat(column_definition, ' ', 'NOT NULL');
+			END IF;
+			
+			if i <> number_of_columns then
+				column_definition := concat(column_definition, ',');
+			end if;
+			create_statement := concat(create_statement, column_definition);
+		END LOOP;
+		create_statement := concat(create_statement, ');');
+		RAISE NOTICE '%', create_statement;
 	END LOOP;
-	
 END $$;
 
 
