@@ -23,6 +23,36 @@ SELECT ccu.constraint_name AS foreign_key, tc.table_name AS tabela, ccu.column_n
 
 /* 4. TO DO */
 
+--select * from information_schema."tables" t 
+
+select * from information_schema."columns" c where table_schema = 'public' order by c.table_name, c.ordinal_position
+
+select row_to_json(row) from (select array_agg(c.column_name) as table_columns, array_agg(c.data_type) as data_type, array_agg(c.is_nullable) as is_nullabel, array_agg(c.character_maximum_length) as character_maximum_lenght , table_name from information_schema."columns" c where table_schema = 'public' group by table_name) row 
+
+
+select distinct(c.table_name) from information_schema."columns" c where table_schema = 'public'  --Pegar os nomes das tabelas
+
+--Uma funcao para construir as tabelas e chaves primarias
+
+CREATE OR REPLACE procedure  create_tables_statements_from_schema()
+LANGUAGE PLPGSQL
+AS $$
+DECLARE
+	tables_info CURSOR FOR SELECT row_to_json(row) FROM (SELECT array_agg(c.column_name) AS table_columns, array_agg(c.data_type) AS data_type, array_agg(c.is_nullable) AS is_nullabel, array_agg(c.character_maximum_length) AS character_maximum_lenght , table_name FROM information_schema."columns" c WHERE table_schema = 'public' GROUP BY table_name) ROW;
+BEGIN
+	
+	
+	for table_info in tables_info LOOP
+		RAISE NOTICE 'Tabela: %', table_info;
+		RAISE NOTICE 'CREATE TABLE "%" ( )'
+	END LOOP;
+	
+END $$;
+
+
+CALL create_tables_statements_from_schema()
+--Uma funcao para criar as chaves estrangeiras nas tabelas
+
 /* 5. Maquina de Estados da coluna status da tabela Track */
 ALTER TABLE "Track" ADD status VARCHAR;
 
