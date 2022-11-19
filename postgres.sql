@@ -1,3 +1,4 @@
+/* PARTE 1 */
 /* 1. Query que retorna todos os índices do schema, com nome da tabela e coluna */
 SELECT indexname AS indice, tablename AS tabela, regexp_matches(indexdef, '\("([^"]+)"\)', 'g') AS coluna FROM pg_indexes WHERE schemaname = 'public';
 
@@ -92,4 +93,35 @@ END;
 $check_state_transition$ LANGUAGE plpgsql;
 
 
+
+/* PARTE 2 */
+/* 1. TO DO */
+
+/* 2. Trigger que garante que uma track que não esteja Approved não pode ser adicionada à uma invoice */
+
+CREATE OR REPLACE TRIGGER 
+track_state_check
+BEFORE INSERT OR UPDATE ON "InvoiceLine"
+FOR EACH ROW
+EXECUTE PROCEDURE check_track_state();
+
+
+CREATE OR REPLACE FUNCTION check_track_state() RETURNS trigger as $check_track_state$
+DECLARE
+	track_status "Track".status%TYPE;
+BEGIN
+	SELECT status INTO track_status FROM "Track" t WHERE "TrackId" = NEW."TrackId";
+	IF track_status <> 'approved' THEN
+		RAISE EXCEPTION 'This track cannot be added to an invoice' USING HINT = format('Cannot add a track which state is %s', track_status);
+	END IF;
+  	RETURN NEW;
+END;
+$check_track_state$ LANGUAGE plpgsql;
+
+-- Funciona
+UPDATE "Track" SET status = 'approved' WHERE "TrackId" = 1;
+INSERT INTO "InvoiceLine"("InvoiceId", "TrackId", "UnitPrice", "Quantity") VALUES (1, 1, 0.99, 1);
+-- Erro, track não pode ser adicionada pois não está approved
+UPDATE "Track" SET status = 'created' WHERE "TrackId" = 2;
+INSERT INTO "InvoiceLine"("InvoiceId", "TrackId", "UnitPrice", "Quantity") VALUES (1, 2, 0.99, 1);
 
