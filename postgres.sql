@@ -312,3 +312,39 @@ WHERE
 INSERT INTO "InvoiceLine" ("InvoiceId", "TrackId", "UnitPrice", "Quantity")
     VALUES (1, 2, 0.99, 1);
 
+
+/* 3. */
+CREATE USER questao3;
+
+GRANT EXECUTE ON procedure add_track_to_invoice TO questao3;
+
+CREATE OR REPLACE procedure add_track_to_invoice(invoice_id integer, track_id integer, unit_price decimal, quantity integer)
+language plpgsql
+as $$
+declare
+invoice_line_id integer;
+begin
+invoice_line_id := (SELECT "InvoiceLineId"  from "InvoiceLine" il  order by  IL."InvoiceLineId" desc limit 1);
+	INSERT INTO "InvoiceLine" ("InvoiceLineId", "InvoiceId", "TrackId", "UnitPrice", "Quantity") VALUES (invoice_line_id + 1, invoice_id, track_id, unit_price, quantity);
+end 
+$$;
+
+-- Funciona (Deve ser rodado com usuario com permissão)
+UPDATE
+    "Track"
+SET
+    status = 'approved'
+WHERE
+    "TrackId" = 1;
+   
+CALL add_track_to_invoice(1, 1, 0.99, 1);
+
+-- Erro, track não pode ser adicionada pois não está approved(Deve ser rodado com usuario com permissão)
+UPDATE
+    "Track"
+SET
+    status = 'created'
+WHERE
+    "TrackId" = 2;
+
+CALL add_track_to_invoice(1, 2, 0.99, 1)
