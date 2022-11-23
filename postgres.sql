@@ -322,9 +322,21 @@ CREATE OR REPLACE procedure add_track_to_invoice(invoice_id integer, track_id in
 language plpgsql
 as $$
 declare
-invoice_line_id integer;
+    track_status "Track".status%TYPE;
+    invoice_line_id integer;
 begin
-invoice_line_id := (SELECT "InvoiceLineId"  from "InvoiceLine" il  order by  IL."InvoiceLineId" desc limit 1);
+
+     SELECT
+        status INTO track_status
+    FROM
+        "Track" t
+    WHERE
+        "TrackId" = track_id;
+    IF track_status <> 'approved' THEN
+        RAISE EXCEPTION 'This track cannot be added to an invoice' USING HINT = format('Cannot add a track which state is %s', track_status);
+    END IF;
+        
+    invoice_line_id := (SELECT "InvoiceLineId"  from "InvoiceLine" il  order by  IL."InvoiceLineId" desc limit 1);
 	INSERT INTO "InvoiceLine" ("InvoiceLineId", "InvoiceId", "TrackId", "UnitPrice", "Quantity") VALUES (invoice_line_id + 1, invoice_id, track_id, unit_price, quantity);
 end 
 $$;
