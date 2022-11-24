@@ -1,3 +1,7 @@
+/* Igor Deo e Anderson Meireles */
+/* Trabalho feito com o PostgreSQL */
+
+
 /* PARTE 1 */
 /* 1. Query que retorna todos os índices do schema, com nome da tabela e coluna */
 SELECT
