@@ -224,47 +224,44 @@ CALL clone_schema ('public');
 ALTER TABLE "Track"
     ADD status VARCHAR(20) DEFAULT "created";
 
-CREATE OR REPLACE TRIGGER track_state_transition BEFORE INSERT
-    OR UPDATE OF status ON "Track" FOR EACH ROW EXECUTE PROCEDURE check_state_transition ();
+UPDATE "Track" SET status = 'created';
 
 CREATE OR REPLACE FUNCTION check_state_transition ()
     RETURNS TRIGGER
     AS $check_state_transition$
 BEGIN
     IF OLD.status = NEW.status THEN
-        RAISE EXCEPTION 'No transition needed'
-            USING HINT = format('State already is %s.', OLD.status);
+        RAISE EXCEPTION 'No transition needed' USING HINT = format('State already is %s.', OLD.status);
+    END IF;
+    IF OLD.status = 'created' THEN
+        IF NEW.status = 'approved' THEN
+            RAISE EXCEPTION 'Unauthorized transition' USING HINT = 'Cant transition from created to approved.';
+        ELSIF NEW.status <> 'in_analysis' THEN
+            RAISE EXCEPTION 'Unauthorized transition' USING HINT = 'This state does not exist.';
         END IF;
-        IF OLD.status = 'created' THEN
-            IF NEW.status = 'approved' THEN
-                RAISE EXCEPTION 'Unauthorized transition'
-                    USING HINT = 'Cant transition from created to approved.';
-                ELSIF NEW.status <> 'in_analysis' THEN
-                    RAISE EXCEPTION 'Unauthorized transition'
-                        USING HINT = 'This state does not exist.';
-                    END IF;
-                ELSIF OLD.status = 'approved' THEN
-                    IF NEW.status = 'created' THEN
-                        RAISE EXCEPTION 'Unauthorized transition'
-                            USING HINT = 'Cant transition from approved to created.';
-                        ELSIF NEW.status <> 'in_analysis' THEN
-                            RAISE EXCEPTION 'Unauthorized transition'
-                                USING HINT = 'This state does not exist.';
-                            END IF;
-                        ELSIF OLD.status = 'in_analysis' THEN
-                            IF NEW.status = 'created' THEN
-                                RAISE EXCEPTION 'Unauthorized transition'
-                                    USING HINT = 'Cant transition from in_analysis to created.';
-                                ELSIF NEW.status <> 'approved' THEN
-                                    RAISE EXCEPTION 'Unauthorized transition'
-                                        USING HINT = 'This state does not exist.';
-                                    END IF;
-                                END IF;
-                                RETURN NEW;
+    ELSIF OLD.status = 'approved' THEN
+        RAISE EXCEPTION 'Unauthorized transition' USING HINT = 'Cant change status of an approved Track';
+    ELSIF OLD.status = 'in_analysis' THEN
+        IF NEW.status = 'created' THEN
+            RAISE EXCEPTION 'Unauthorized transition' USING HINT = 'Cant transition from in_analysis to created.';
+        ELSIF NEW.status <> 'approved' THEN
+            RAISE EXCEPTION 'Unauthorized transition' USING HINT = 'This state does not exist.';
+        END IF;
+    END IF;
+    RETURN NEW;
 END;
 $check_state_transition$
 LANGUAGE plpgsql;
 
+CREATE OR REPLACE TRIGGER track_state_transition BEFORE INSERT
+    OR UPDATE OF status ON "Track" FOR EACH ROW EXECUTE PROCEDURE check_state_transition ();
+
+-- Cenário de Teste
+UPDATE "Track" SET status = 'in_analysis' WHERE "TrackId" = 3; -- OK
+UPDATE "Track" SET status = 'created' WHERE "TrackId" = 3; -- ERRO
+UPDATE "Track" SET status = 'approved' WHERE "TrackId" = 3; -- OK
+UPDATE "Track" SET status = 'created' WHERE "TrackId" = 3; -- ERRO
+UPDATE "Track" SET status = 'in_analysis' WHERE "TrackId" = 3; -- ERRO
 
 /* PARTE 2 */
 /* 1. A regra semântica definida está envolvida com a máquina de estados definida na parte 1.
